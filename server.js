@@ -11,6 +11,7 @@ const TimeRecord = require('./models/TimeRecord');
 const OfficeLocation = require('./models/OfficeLocation');
 const Event = require('./models/Event');
 const axios = require('axios');
+const moment = require('moment-timezone');
 
 dotenv.config();
 
@@ -413,11 +414,9 @@ app.get('/api/time-records', auth, async (req, res) => {
 app.get('/api/time-records/date/:date', auth, async (req, res) => {
   try {
     const dateStr = req.params.date; // Format: YYYY-MM-DD
-    const startDate = new Date(dateStr);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(dateStr);
-    endDate.setHours(23, 59, 59, 999);
+    const timezone = req.query.timezone || 'Asia/Manila';
+    const startDate = moment.tz(dateStr, timezone).startOf('day').toDate();
+    const endDate = moment.tz(dateStr, timezone).endOf('day').toDate();
     
     const timeRecords = await TimeRecord.find({
       user: req.userId,
@@ -435,7 +434,8 @@ app.get('/api/time-records/date/:date', auth, async (req, res) => {
 app.get('/api/time-records/user/:userId', auth, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, timezone } = req.query;
+    const userTimezone = timezone || 'Asia/Manila';
     
     // Validate user ID
     if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -447,11 +447,8 @@ app.get('/api/time-records/user/:userId', auth, async (req, res) => {
     
     // Add date range if provided
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const start = moment.tz(startDate, userTimezone).startOf('day').toDate();
+      const end = moment.tz(endDate, userTimezone).endOf('day').toDate();
       
       query.date = { $gte: start, $lte: end };
     }
@@ -505,7 +502,8 @@ app.get('/api/time-records/user/:userId', auth, async (req, res) => {
 // Time in
 app.post('/api/time-records/time-in', auth, async (req, res) => {
   try {
-    const { coordinates, session, biometricAuthenticated } = req.body;
+    const { coordinates, session, biometricAuthenticated, timezone } = req.body;
+    const userTimezone = timezone || 'Asia/Manila';
     
     if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) {
       return res.status(400).json({ error: 'Valid coordinates are required' });
@@ -521,13 +519,13 @@ app.post('/api/time-records/time-in', auth, async (req, res) => {
       return res.status(400).json({ error: 'Biometric authentication is required' });
     }
     
-    // Check if user already has a time record for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Calculate start and end of today in user's timezone
+    const todayStart = moment.tz(userTimezone).startOf('day').toDate();
+    const todayEnd = moment.tz(userTimezone).endOf('day').toDate();
     
     let existingRecord = await TimeRecord.findOne({
       user: req.userId,
-      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+      date: { $gte: todayStart, $lte: todayEnd }
     });
     
     // Get the active office location
@@ -602,7 +600,7 @@ app.post('/api/time-records/time-in', auth, async (req, res) => {
       // Create new time record
       const timeRecord = new TimeRecord({
         user: req.userId,
-        date: today,
+        date: todayStart,
         timeIn: currentTime, // For backward compatibility
         location: {
           type: 'Point',
@@ -636,7 +634,8 @@ app.post('/api/time-records/time-in', auth, async (req, res) => {
 // Time out
 app.post('/api/time-records/:id/time-out', auth, async (req, res) => {
   try {
-    const { coordinates, session, biometricAuthenticated } = req.body;
+    const { coordinates, session, biometricAuthenticated, timezone } = req.body;
+    const userTimezone = timezone || 'Asia/Manila';
     
     if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) {
       return res.status(400).json({ error: 'Valid coordinates are required' });
