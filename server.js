@@ -899,6 +899,17 @@ app.get('/api/events/:date', auth, async (req, res) => {
   }
 });
 
+// Get all events for the authenticated user
+app.get('/api/events', auth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const events = await Event.find({ userId }).sort({ date: -1 });
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch all events' });
+  }
+});
+
 // Add a new event
 app.post('/api/events', auth, async (req, res) => {
   try {
