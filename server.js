@@ -383,7 +383,7 @@ async function createDefaultOfficeLocation() {
           type: 'Point',
           coordinates: [120.59097690306716, 18.20585558594641] 
         },
-        radius: 1300, // 1000 meters radius (1km) to make testing easier
+        radius: 30, // 30 meters radius 
         address: 'Main Office Address',
         isActive: true
       });
